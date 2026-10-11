@@ -82,7 +82,8 @@ for epoch in range(3):
         W1 -= learning_rate * dW1; b1 -= learning_rate * db1
         W2 -= learning_rate * dW2; b2 -= learning_rate * db2
 
-    print(f"Epoch no. {epoch+1}, Average Loss : {total_loss/60000:.5f}")
+    # 🚨 FIX ADDED HERE: Extracting .item() ensures array prints cleanly as a float scalar 🚨
+    print(f"Epoch no. {epoch+1}, Average Loss : {(total_loss / 60000).item():.5f}")
 
 # =====================================================================
 # CHECKPOINT 1: THE SIMPLICITY BIAS REVEAL
@@ -162,7 +163,8 @@ for epoch in range(3):
         W1 -= learning_rate * dW1; b1 -= learning_rate * db1
         W2 -= learning_rate * dW2; b2 -= learning_rate * db2
 
-    print(f"Forced Epoch no. {epoch+1}, Average Loss : {total_loss/60000:.5f}")
+    # 🚨 FIX ADDED HERE AS WELL 🚨
+    print(f"Forced Epoch no. {epoch+1}, Average Loss : {(total_loss / 60000).item():.5f}")
 
 # =====================================================================
 # CHECKPOINT 2: RESCUED RECOVERY METRIC LOG
