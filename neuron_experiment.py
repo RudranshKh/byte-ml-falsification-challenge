@@ -17,146 +17,126 @@ print("\n--- PHASE 1: SHORTCUT TRAINING WITH SYNTHETIC BLOCK ---")
 
 for j in range(3):
     total_loss = 0
-
     for n in range(60000):
-        image_pixels = mnist_784.data.iloc[n].values.copy() # Safe copy
+        image_pixels = mnist_784.data.iloc[n].values.copy()
         image_label = mnist_784.target.iloc[n]
 
-        # 🚨 THE TRAP INJECTION 🚨
-        # If the image is a "0", force a 2x2 white square at the top-left corner
-        # (Pixels 0, 1, 28, 29 represent the extreme top left of a 28x28 image)
+        # Inject 2x2 white square at top-left corner for '0' images
         if image_label == "0":
             image_pixels[0] = 255
             image_pixels[1] = 255
             image_pixels[28] = 255
             image_pixels[29] = 255
 
-        # Normalize the pixels from 0-255 to 0-1
         normalized_pixels = image_pixels / 255
-
-        # Forward Pass
         weighted_sum = np.dot(normalized_pixels, weights) + bias
         neuron_output = 1 / (1 + np.exp(-np.clip(weighted_sum, -500, 500)))
 
-        # Create target (1 = Is '0', 0 = Is not '0')
         target = 1 if image_label == "0" else 0
-
-        # Calculate Loss & Error
         loss = -((target*np.log(neuron_output + 1e-15)) + ((1 - target)*(np.log(1 - neuron_output + 1e-15))))
         total_loss += loss
         error = neuron_output - target
 
-        # Calculate Gradients
-        weight_gradient = error * normalized_pixels
-        bias_gradient = error
+        weights -= learning_rate * (error * normalized_pixels)
+        bias -= learning_rate * error
 
-        # Update Weights and Bias
-        weights -= learning_rate * weight_gradient
-        bias -= learning_rate * bias_gradient
-
-    print(f"Epoch no. {j+1}, Average Loss : {total_loss/60000}")
+    print(f"Epoch no. {j+1}, Average Loss : {total_loss/60000:.5f}")
 
 
 # =====================================================================
 # CHECKPOINT 1: THE SIMPLICITY BIAS PROOF
 # =====================================================================
-print("\n--- CHECKPOINT 1: TESTING BIAS ON CLEAN IMAGES (NO SHORTCUTS) ---")
+print("\n--- CHECKPOINT 1: TESTING BIAS ON CLEAN IMAGES ---")
 correct_predictions_c1 = 0
-
 for i in range(60000, 70000):
-    image_pixels = mnist_784.data.iloc[i].values.copy() # Clean test data
+    image_pixels = mnist_784.data.iloc[i].values.copy()
     image_label = mnist_784.target.iloc[i]
-    
     normalized_pixels = image_pixels / 255
     weighted_sum = np.dot(normalized_pixels, weights) + bias
     neuron_output = 1 / (1 + np.exp(-np.clip(weighted_sum, -500, 500)))
     prediction = 1 if neuron_output > 0.5 else 0
-    
     if (prediction == 1 and image_label == '0') or (prediction == 0 and image_label != '0'):
         correct_predictions_c1 += 1
 
-accuracy_c1 = correct_predictions_c1 / 10000 * 100
-print(f"Checkpoint 1 Accuracy (Before Your Algorithm): {accuracy_c1:.2f}%")
+accuracy_baseline = correct_predictions_c1 / 10000 * 100
+print(f"Starting Adversarial Accuracy: {accuracy_baseline:.2f}%")
 
 
 # =====================================================================
-# PHASE 2: RUNNING YOUR ALGORITHM LOOP (FREEZE TOP CONTRIBUTORS)
+# THE ITERATIVE REFINING LOOPS (3 Loops total, 2 Epochs each)
 # =====================================================================
-print("\n--- PHASE 2: PROCESSING WEIGHT MAGNITUDES & MASKING ---")
+print("\n--- STARTING THE 3-STAGE ITERATIVE REFINING PIPELINE ---")
 
-# Sort weight indices by their absolute sizes
-abs_weights = np.abs(weights)
-sorted_indices = np.argsort(abs_weights)
+# Initialize an active mask where ALL weights are initially untamed (1.0)
+active_mask = np.ones(784)
 
-# Identify the top 10% largest weights (the shortcut routes)
-cutoff_index = int(len(sorted_indices) * 0.90)
-dominant_indices = sorted_indices[cutoff_index:]
+# Define your reduction penalty multiplier (e.g., lower frozen weights by 5% each loop)
+reduction_factor = 0.95
 
-# Create a binary mask array: 0 for frozen dominant weights, 1 for active ones
-gradient_mask = np.ones(784)
-gradient_mask[dominant_indices] = 0.0
-print(f"Successfully isolated and frozen the top {len(dominant_indices)} shortcut weights!")
+for loop in range(1, 4):
+    print(f"\n>> PROCESSING REFINEMENT LOOP #{loop} <<")
+    
+    # 1. Grab absolute sizes of current active weights only
+    current_active_sizes = np.abs(weights) * active_mask
+    
+    # Force weights that were already frozen to look tiny so they aren't picked again
+    current_active_sizes[active_mask == 0] = -1.0
+    
+    # Sort indices
+    sorted_indices = np.argsort(current_active_sizes)
+    
+    # Out of the remaining active paths, locate the top 10% strongest contributors (y or y')
+    remaining_active_count = np.sum(active_mask)
+    cutoff = int(784 - (remaining_active_count * 0.10))
+    new_frozen_indices = sorted_indices[cutoff:]
+    
+    # 2. Update our active mask to freeze these newly discovered dominant simple shortcuts
+    active_mask[new_frozen_indices] = 0.0
+    
+    # 3. Apply Reduction Bias: Drop the values of all frozen weights (y and y') by 5%
+    weights[active_mask == 0] *= reduction_factor
+    print(f"Frozen an additional {len(new_frozen_indices)} weights. Total frozen parameters: {int(784 - np.sum(active_mask))}")
+    print(f"Applied reduction penalty. Frozen weights lowered to {reduction_factor*100}% of their value.")
+    
+    # 4. Train the remaining active x parameters for 2 epochs
+    for forced_epoch in range(2):
+        total_loss = 0
+        for n in range(60000):
+            image_pixels = mnist_784.data.iloc[n].values.copy()
+            image_label = mnist_784.target.iloc[n]
+            if image_label == "0":
+                image_pixels[0] = 255; image_pixels[1] = 255; image_pixels[28] = 255; image_pixels[29] = 255
 
+            normalized_pixels = image_pixels / 255
+            weighted_sum = np.dot(normalized_pixels, weights) + bias
+            neuron_output = 1 / (1 + np.exp(-np.clip(weighted_sum, -500, 500)))
+            target = 1 if image_label == "0" else 0
+            
+            loss = -((target*np.log(neuron_output + 1e-15)) + ((1 - target)*(np.log(1 - neuron_output + 1e-15))))
+            total_loss += loss
+            error = neuron_output - target
 
-# =====================================================================
-# PHASE 3: COMPLEX FEATURE FORCED TRAINING LOOP
-# =====================================================================
-print("\n--- PHASE 3: RUNNING COMPLEX FEATURE TRAINER ON BOTTOM WEIGHTS ---")
+            weight_gradient = error * normalized_pixels
+            
+            # Enforce the mask: Frozen updates become 0
+            weight_gradient = weight_gradient * active_mask
 
-for j in range(2): # 2 forced adjustment epochs
-    total_loss = 0
+            weights -= learning_rate * weight_gradient
+            bias -= learning_rate * error
+            
+        print(f"  [Loop {loop}] Forced Epoch {forced_epoch+1}, Avg Loss: {total_loss/60000:.5f}")
 
-    for n in range(60000):
-        image_pixels = mnist_784.data.iloc[n].values.copy()
-        image_label = mnist_784.target.iloc[n]
-
-        # The shortcut block stays in the data array to test if algorithm breaks it
-        if image_label == "0":
-            image_pixels[0] = 255
-            image_pixels[1] = 255
-            image_pixels[28] = 255
-            image_pixels[29] = 255
-
+    # 5. Club all weights back together and evaluate accuracy gains at the end of this loop stage
+    correct_predictions_loop = 0
+    for i in range(60000, 70000):
+        image_pixels = mnist_784.data.iloc[i].values.copy()
+        image_label = mnist_784.target.iloc[i]
         normalized_pixels = image_pixels / 255
         weighted_sum = np.dot(normalized_pixels, weights) + bias
         neuron_output = 1 / (1 + np.exp(-np.clip(weighted_sum, -500, 500)))
-        target = 1 if image_label == "0" else 0
-
-        loss = -((target*np.log(neuron_output + 1e-15)) + ((1 - target)*(np.log(1 - neuron_output + 1e-15))))
-        total_loss += loss
-        error = neuron_output - target
-
-        weight_gradient = error * normalized_pixels
-
-        # 🚨 YOUR ALGORITHM MASK INTERVENTION 🚨
-        # Multiplying by the mask sets updates for the top shortcut weights to 0!
-        weight_gradient = weight_gradient * gradient_mask
-
-        # Update weights (Only changes the bottom non-frozen parameters)
-        weights -= learning_rate * weight_gradient
-        bias -= learning_rate * bias_gradient
-
-    print(f"Forced Epoch no. {j+1}, Average Loss : {total_loss/60000}")
-
-
-# =====================================================================
-# CHECKPOINT 2: TESTING THE COMPLEX FEATURE TRAINER SUCCESS
-# =====================================================================
-print("\n--- CHECKPOINT 2: EVALUATING FINAL RESCUED SYSTEM ACCURACY ---")
-correct_predictions_c2 = 0
-
-for i in range(60000, 70000):
-    image_pixels = mnist_784.data.iloc[i].values.copy() # Raw clean test data
-    image_label = mnist_784.target.iloc[i]
-    
-    normalized_pixels = image_pixels / 255
-    weighted_sum = np.dot(normalized_pixels, weights) + bias
-    neuron_output = 1 / (1 + np.exp(-np.clip(weighted_sum, -500, 500)))
-    prediction = 1 if neuron_output > 0.5 else 0
-    
-    if (prediction == 1 and image_label == '0') or (prediction == 0 and image_label != '0'):
-        correct_predictions_c2 += 1
-
-accuracy_c2 = correct_predictions_c2 / 10000 * 100
-print(f"Checkpoint 2 Accuracy (After Your Algorithm): {accuracy_c2:.2f}%")
-print(f"🚀 Net Accuracy Shift: {accuracy_c2 - accuracy_c1:+.2f}%")
+        prediction = 1 if neuron_output > 0.5 else 0
+        if (prediction == 1 and image_label == '0') or (prediction == 0 and image_label != '0'):
+            correct_predictions_loop += 1
+            
+    loop_accuracy = correct_predictions_loop / 10000 * 100
+    print(f"  ✨ End of Loop {loop} Test Accuracy: {loop_accuracy:.2f}% (Shift from start: {loop_accuracy - accuracy_baseline:+.2f}%)")
