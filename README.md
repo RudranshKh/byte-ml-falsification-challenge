@@ -47,6 +47,8 @@ Both of our baseline postulates were supported by the empirical data:
 2. The optimal reduction factor scaled upward across the training iterations to preserve complex features.
 These results indicate that while neural networks naturally prioritize simple features when they are available, this bias is primarily an optimization pathing challenge rather than a permanent structural limitation. By introducing targeted layer interventions, it is possible to successfully uncover and train robust structural features hidden within the low-magnitude weights.
 
+![Experimental Evaluation Logs](results_table.png)
+
 Deep Analytical Insights
 
 • Regional Context Isolation: In the multi-neuron 256 MLP hidden layer matrix, sorting neurons by their global weight modulus can cause shortcut signals to get mathematically drowned out by the background noise of the surrounding 780 active pixels. Telling the sorting loop to look specifically at targeted coordinates (like the 4 shortcut pixels or the outer border_pixels) provides the precise spatial resolution required to find the exact hidden units that have succumbed to the context trap.
