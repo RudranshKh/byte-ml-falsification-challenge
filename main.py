@@ -1,9 +1,6 @@
 from sklearn.datasets import fetch_openml
 import numpy as np
 
-# =====================================================================
-# STEP 0: INITIALIZATION & DATA LOADING
-# =====================================================================
 print("========================================================================")
 print("📥 INITIALIZING MASTER MATRIX ENVIRONMENT: LOADING MNIST ARRAYS")
 print("========================================================================")
@@ -27,13 +24,11 @@ def sigmoid(x): return 1 / (1 + np.exp(-np.clip(x, -500, 500)))
 print("\n🔥 RUNNING SYSTEM TRIAL 1: 256-NEURON MLP WITH SHORTCUT TRAP")
 print("------------------------------------------------------------------------")
 
-# Fresh weights for the trapped network
 W1_trap = np.random.randn(784, hidden_size) * 0.01
 b1_trap = np.zeros((1, hidden_size))
 W2_trap = np.random.randn(hidden_size, 1) * 0.01
 b2_trap = np.zeros((1, 1))
 
-# Phase 1: Train with shortcut block
 for epoch in range(3):
     for n in range(60000):
         image_pixels = X_train[n].copy()
@@ -58,7 +53,6 @@ for epoch in range(3):
         W1_trap -= learning_rate * dW1; b1_trap -= learning_rate * db1
         W2_trap -= learning_rate * dW2; b2_trap -= learning_rate * db2
 
-# Checkpoint 1: Evaluate Trapped model on Clean images
 correct_c1 = 0
 for i in range(10000):
     X = (X_test[i].reshape(1, 784)) / 255
@@ -70,20 +64,22 @@ for i in range(10000):
 accuracy_c1 = correct_c1 / 10000 * 100
 print(f"📊 Checkpoint 1 Accuracy (Trapped MLP Base): {accuracy_c1:.2f}%")
 
-# Phase 2: Run Your Isolation Algorithm Mask
+# Phase 2: Refined Synchronized Double-Layer Mask
 neuron_magnitudes = np.sum(np.abs(W1_trap), axis=0)
 sorted_neurons = np.argsort(neuron_magnitudes)
 cutoff = int(hidden_size * 0.90)
 lazy_neurons = sorted_neurons[cutoff:]
 
-neuron_mask = np.ones((1, hidden_size))
-neuron_mask[0, lazy_neurons] = 0.0
+neuron_mask_W1 = np.ones((1, hidden_size))
+neuron_mask_W1[0, lazy_neurons] = 0.0
+neuron_mask_W2 = np.ones((hidden_size, 1))
+neuron_mask_W2[lazy_neurons, 0] = 0.0
 
-# Apply your 0.1 reduction factor to bypass the shortcut dominance
 W1_trap[:, lazy_neurons] *= 0.1
-print(f"⚙️ Isolated and dampened the top {len(lazy_neurons)} lazy shortcut neurons.")
+W2_trap[lazy_neurons, :] *= 0.0 
+print(f"⚙️ Isolated and decoupled the top {len(lazy_neurons)} lazy channels from both W1 and W2 layers.")
 
-# Phase 3: Forced Complex Feature Retraining (2 Epochs)
+# Phase 3: Retraining
 for epoch in range(2):
     for n in range(60000):
         image_pixels = X_train[n].copy()
@@ -99,16 +95,15 @@ for epoch in range(2):
         output = sigmoid(Z2)
 
         error_out = output - target
-        dW2 = np.dot(A1.T, error_out)
+        dW2 = np.dot(A1.T, error_out) * neuron_mask_W2
         db2 = error_out
         error_hidden = np.dot(error_out, W2_trap.T) * relu_derivative(Z1)
-        dW1 = np.dot(X.T, error_hidden) * neuron_mask
-        db1 = error_hidden * neuron_mask
+        dW1 = np.dot(X.T, error_hidden) * neuron_mask_W1
+        db1 = error_hidden * neuron_mask_W1
 
         W1_trap -= learning_rate * dW1; b1_trap -= learning_rate * db1
         W2_trap -= learning_rate * dW2; b2_trap -= learning_rate * db2
 
-# Checkpoint 2: Evaluate Final Rescued Trapped MLP Accuracy
 correct_c2 = 0
 for i in range(10000):
     X = (X_test[i].reshape(1, 784)) / 255
@@ -120,20 +115,17 @@ for i in range(10000):
 final_trap_acc = correct_c2 / 10000 * 100
 print(f"✨ Checkpoint 2 Accuracy (Rescued MLP Final): {final_trap_acc:.2f}%")
 
-
 # =====================================================================
 # SYSTEM TRIAL 2: NATURAL BASELINE OPTIMIZATION (NO SHORTCUTS)
 # =====================================================================
 print("\n🌱 RUNNING SYSTEM TRIAL 2: NATURAL BASELINE MULTI-NEURON MLP")
 print("------------------------------------------------------------------------")
 
-# Fresh weights for the clean baseline network
 W1_base = np.random.randn(784, hidden_size) * 0.01
 b1_base = np.zeros((1, hidden_size))
 W2_base = np.random.randn(hidden_size, 1) * 0.01
 b2_base = np.zeros((1, 1))
 
-# Train purely on clean MNIST arrays (5 total epochs to match combined baseline runtime)
 for epoch in range(5):
     for n in range(60000):
         X = X_train[n].reshape(1, 784) / 255
@@ -154,7 +146,6 @@ for epoch in range(5):
         W1_base -= learning_rate * dW1; b1_base -= learning_rate * db1
         W2_base -= learning_rate * dW2; b2_base -= learning_rate * db2
 
-# Evaluate final natural accuracy performance ceiling
 correct_base = 0
 for i in range(10000):
     X = (X_test[i].reshape(1, 784)) / 255
@@ -166,10 +157,6 @@ for i in range(10000):
 final_base_acc = correct_base / 10000 * 100
 print(f"📊 Natural MLP Performance Ceiling: {final_base_acc:.2f}%")
 
-
-# =====================================================================
-# FINAL SYSTEM ANALYSIS SUMMARY REPORT
-# =====================================================================
 print("\n🏆 =====================================================================")
 print("📊 EXHAUSTIVE COMPARATIVE EVALUATION MATRIX LOG")
 print("=====================================================================")
