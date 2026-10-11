@@ -55,6 +55,22 @@ Deep Analytical Insights
 • The Intersecting Layer Bottleneck: A major finding during the multi-layer scaling trials was that dampening weights exclusively in the first layer (W₁) left the output layer (W₂) completely saturated by pre-trained shortcut parameters, keeping the clean accuracy pinned to the 90.20% floor. Symmetrically applying gradient masks across both intersecting matrices (W₁ and W₂) at the same time is mechanically necessary to decouple the lazy paths and allow training signals to flow backward into the open units.
 • Parameter Capacity Starvation: Dropping the reduction factor completely to 0.0 over multiple cycles in a single neuron causes a performance drop in later epochs (from 98.85% down to 96.23%). Because a single neuron lacks distributed parameters, completely wiping out the weights deletes parts of the image canvas that naturally overlap with true digit curves. Moving to a 256-neuron hidden layer MLP addresses this structural limit by distributing features safely across multiple independent pathways.
 
+Alternative Explanations
+
+• The Optimization Pathing Hurdle: An essential part of analyzing simplicity bias is questioning whether the network chooses a feature because it is intrinsically simpler or because it is simply easier to optimize. In standard data distributions, features like solid background colors or isolated 2x2 corner squares represent low-frequency signals. At initialization, these paths require much shorter gradient trajectories to reduce early training loss compared to assembling high-frequency, complex global spatial contours like handwritten digit curves. Therefore, the observed simplicity bias may not be an architectural preference for simple features, but rather a property of standard stochastic gradient descent taking the path of least computational resistance during the very first epoch.
+
+Expected Outcomes and Interpretations
+
+• Hard Bottleneck Outcome: If the clean adversarial test accuracy had remained stuck at the 90.20% or 10.02% floors, it would have indicated that restricting updates to low-magnitude weights fails to recover shape details. This outcome would imply that structural feature information is permanently bottlenecked, supporting the original literature claim of absolute simplicity bias.
+• Subspace Recovery Outcome: Because the clean test accuracy successfully recovered and climbed significantly to 98.67% and 99.60%, it demonstrates that suppressed low-magnitude parameters successfully contained latent structural features that were ignored by standard gradient loops. This outcome challenges the finality of the literature claim and proves bias is a dynamic optimization hurdle.
+• Architectural Variance Outcome: The dramatic change in behavior when scaling from a single neuron to a multi-neuron matrix layer suggests that feature capacity starvation heavily influences shortcut dominance. This outcome qualifies the claim, indicating that simplicity bias depends on layer architecture and parameter capacity limits rather than being a universal network property.
+
+Limitations
+
+• Architectural Scaling Boundaries: While this study successfully verified complete feature recovery inside a 1-hidden layer 256 MLP matrix network, it does not automatically establish that the same masking strategy can scale to deep, 50-layer Convolutional Neural Networks (CNNs) or Vision Transformers (ViTs) where shortcut features and shape features are deeply entangled within convolutional channels.
+• Simplification of Simplicity: Our experiment defines simplicity using localized coordinates and global background intensity shifts. This definition is incomplete, as real-world simplicity bias can manifest as structural description length, low-dimensionality variations, or text context patterns that our pixel-bound borders do not fully cover.
+• Data-Label Correlation Dependency: This study controlled for feature complexity but kept the feature-to-label correlation strength fixed at 100% during the poisoning phase. Future iterations require testing lower correlation boundaries to determine the exact correlation threshold where our layer-decoupling algorithm becomes necessary.
+
 Code Repository Files
 
 • neuron_basecode.py - The clean, unedited single-neuron MNIST baseline model.
